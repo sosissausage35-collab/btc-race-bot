@@ -114,7 +114,14 @@ await runBars({
       }
     }
 
-    if (ctx.filledTrades === 0 && ctx.barsSeen >= INSURANCE_BAR && ctx.emaFast > ctx.emaSlow) {
+    // barsSeen counts the batch being answered, so > (not >=) means the
+    // first eligible reply is seq 1200.
+    if (ctx.filledTrades === 0 && ctx.barsSeen > INSURANCE_BAR && ctx.emaFast > ctx.emaSlow) {
+      // Do not buy the guardrail trade into a fresh down-move: the 60-bar
+      // return must not be worse than -0.2%.
+      const back = ctx.closes[ctx.closes.length - 1 - MOM_LOOKBACK];
+      const mom = back !== undefined ? close / back - 1 : -1;
+      if (mom < -0.002) return [];
       const notional = (state.cash * BigInt(INSURANCE_BPS)) / 10000n;
       if (notional > 0n) {
         return [{ side: "buy", symbol: SYMBOL, notional_quote_units: notional, max_slippage_bps: MAX_SLIPPAGE_BPS }];
